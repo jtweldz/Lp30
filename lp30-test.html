@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LP30 Test</title>
+<title>LP30 Test v4</title>
 <style>
 body{font-family:-apple-system,system-ui,sans-serif;background:#fbf6ef;color:#3a2a1e;margin:0;padding:16px}
 h1{font-size:22px;margin:0 0 4px}p{margin:4px 0 12px;color:#7a6250;font-size:14px}
@@ -9,14 +9,18 @@ button.alt{background:#8a5a3b}button:disabled{opacity:.4}
 #log{background:#fff;border-radius:12px;padding:10px;font:13px ui-monospace,Menlo,monospace;white-space:pre-wrap;min-height:160px;box-shadow:0 1px 4px #0001}
 input{width:100%;box-sizing:border-box;font:16px ui-monospace,Menlo,monospace;padding:10px;border-radius:10px;border:1px solid #d8c6b4;margin-top:8px}
 </style></head><body>
-<h1>LP30 Scooter Test</h1>
+<h1>LP30 Scooter Test v4</h1>
 <p>Read-only. These buttons only ask the scooter for data. Open in Bluefy, turn the scooter on, then tap Connect.</p>
 <button id="c">Connect</button>
 <div id="st">Not connected</div>
-<button class="q" data-h="55AA0322013202A5FF" disabled>Battery % (55AA)</button>
-<button class="q" data-h="55AA0322012904ACFF" disabled>Odometer (55AA)</button>
-<button class="q" data-h="55AA032201B02009FF" disabled>Main info block (55AA)</button>
-<button class="q alt" data-h="5AA5013E200132026BFF" disabled>Battery % (5AA5 style)</button>
+<p><b>Listen only:</b> after Connect, just wait 20 s and watch the log; the page sends nothing until you tap a button. Every button below is a READ request; none change settings.</p>
+<button class="q" data-h="55AA0320011A0A" disabled>1. M365 ESC version (addr 20, reg 1A)</button>
+<button class="q" data-h="55AA032001B020" disabled>2. M365 ESC main info (addr 20, reg B0)</button>
+<button class="q" data-h="55AA0320012504" disabled>3. M365 ESC range/odo (addr 20, reg 25)</button>
+<button class="q alt" data-h="5AA5003E2001B020" disabled>4. Ninebot ESC main info (5AA5, dst 20)</button>
+<button class="q alt" data-h="5AA5003E21011A02" disabled>5. Ninebot BLE version (5AA5, dst 21)</button>
+<button class="q alt" data-h="55AA0321011A02" disabled>6. M365 BLE-board version (addr 21)</button>
+<button id="ta" class="alt" disabled>Try all (1.5 s apart)</button>
 <label style="display:flex;gap:8px;align-items:center;margin:8px 0;font-size:16px"><input type="checkbox" id="nr" style="width:auto;margin:0"> Send without response (try if no replies)</label>
 <input id="hx" placeholder="Custom hex, e.g. 55AA0322013202A5FF">
 <button id="sx" class="alt" disabled>Send custom</button>
@@ -26,14 +30,20 @@ input{width:100%;box-sizing:border-box;font:16px ui-monospace,Menlo,monospace;pa
 const EXTRA=['0000ffe0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','0000ae00-0000-1000-8000-00805f9b34fb','0000fe95-0000-1000-8000-00805f9b34fb','0000180a-0000-1000-8000-00805f9b34fb'];
 const SVC='6e400001-b5a3-f393-e0a9-e50e24dcca9e',TX='6e400003-b5a3-f393-e0a9-e50e24dcca9e',RX='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 let rx;const L=document.getElementById('log');const log=s=>{L.textContent=new Date().toLocaleTimeString()+'  '+s+'\n'+L.textContent};
+const u16=(d,i)=>d[i]|d[i+1]<<8,s16=(d,i)=>(u16(d,i)<<16)>>16,u32=(d,i)=>(d[i]|d[i+1]<<8|d[i+2]<<16|d[i+3]<<24)>>>0;
+function dB0(d){const kmh=s16(d,10)/1000,odo=u32(d,14)/1000,trip=u16(d,18)/100,t=u16(d,22)/10;return'batt '+u16(d,8)+'%, speed '+kmh.toFixed(1)+' km/h ('+(kmh/1.609).toFixed(1)+' mph), odo '+odo.toFixed(1)+' km / '+(odo/1.609).toFixed(1)+' mi, trip '+trip.toFixed(2)+' km, temp '+t+' C'}
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
 const bytes=h=>{h=h.replace(/[^0-9a-f]/gi,'');if(h.length%2)throw'odd hex';return new Uint8Array(h.match(/../g).map(x=>parseInt(x,16)))};
-function decode(v){const b=new Uint8Array(v);if(b[0]==0x55&&b[1]==0xAA&&b.length>=7){const reg=b[5],d=b.slice(6,6+b[2]-2);
+function decode(v){const b=new Uint8Array(v);
+ if(b[0]==0x5A&&b[1]==0xA5&&b.length>=9){const reg=b[6],d=b.slice(7,7+b[2]);if(reg==0xB0&&d.length>=26)return dB0(d);if(reg==0x1A&&d.length>=2)return'version '+d[1].toString(16)+'.'+d[0].toString(16);}
+ if(b[0]==0x55&&b[1]==0xAA&&b[5]==0xB0){const d=b.slice(6,6+b[2]-2);if(d.length>=26)return dB0(d)}
+ if(b[0]==0x55&&b[1]==0xAA&&b[5]==0x1A){const d=b.slice(6);return'version '+d[1].toString(16)+'.'+d[0].toString(16)}if(b[0]==0x55&&b[1]==0xAA&&b.length>=7){const reg=b[5],d=b.slice(6,6+b[2]-2);
  if(reg==0x32&&d.length>=2)return'battery '+(d[0]|d[1]<<8)+'%';
  if(reg==0x29&&d.length>=4){const m=(d[0]|d[1]<<8|d[2]<<16|d[3]<<24)>>>0;return'odometer '+(m/1000).toFixed(1)+' km / '+(m/1609.34).toFixed(1)+' mi'}}
  return''}
-async function send(h){try{const b=bytes(h);(document.getElementById('nr').checked&&rx.writeValueWithoutResponse)?await rx.writeValueWithoutResponse(b):await rx.writeValue(b);log('sent '+hex(b))}catch(e){log('send error: '+e)}}
-const btns=on=>document.querySelectorAll('button.q,#sx').forEach(b=>b.disabled=!on);
+function ck(a){let x=0;for(let i=2;i<a.length;i++)x+=a[i];x=(~x)&0xFFFF;return new Uint8Array([...a,x&255,x>>8])}
+async function send(h,raw){try{let b=bytes(h);if(!raw&&b.length>=6&&((b[0]==0x55&&b[1]==0xAA)||(b[0]==0x5A&&b[1]==0xA5)))b=ck(b);(document.getElementById('nr').checked&&rx.writeValueWithoutResponse)?await rx.writeValueWithoutResponse(b):await rx.writeValue(b);log('sent '+hex(b))}catch(e){log('send error: '+e)}}
+const btns=on=>document.querySelectorAll('button.q,#sx,#ta').forEach(b=>b.disabled=!on);
 document.getElementById('c').onclick=async()=>{try{
  if(!navigator.bluetooth){log('No Web Bluetooth here. Open this page in Bluefy.');return}
  const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC,...EXTRA]});
@@ -51,5 +61,6 @@ document.getElementById('c').onclick=async()=>{try{
  document.getElementById('st').textContent='Connected to '+(dev.name||'device');btns(true);log('connected, listening');
 }catch(e){log('connect error: '+e)}};
 document.querySelectorAll('button.q').forEach(b=>b.onclick=()=>send(b.dataset.h));
-document.getElementById('sx').onclick=()=>send(document.getElementById('hx').value);
+document.getElementById('sx').onclick=()=>send(document.getElementById('hx').value,true);
+document.getElementById('ta').onclick=async()=>{for(const b of document.querySelectorAll('button.q')){log('-- '+b.textContent);await send(b.dataset.h);await new Promise(r=>setTimeout(r,1500))}log('-- try-all done')};
 </script></body></html>
