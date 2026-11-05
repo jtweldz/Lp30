@@ -45,7 +45,7 @@ document.getElementById('c').onclick=async()=>{try{
   for(const c of cs){const p=c.properties,f=['read','write','writeWithoutResponse','notify','indicate'].filter(k=>p[k]).join(',');
    log('  char '+c.uuid.slice(0,8)+' ['+f+']');
    if(p.notify||p.indicate){try{await c.startNotifications();c.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value.buffer;const d=decode(v);log('got '+c.uuid.slice(4,8)+': '+hex(v)+(d?'  = '+d:''))})}catch(e){log('  notify fail '+e)}}
-   if(c.uuid==RX)rx=c}}
+   if(c.uuid.toLowerCase()==RX)rx=c}}
  if(!rx){log('no 6E400002 write char found');}
  dev.addEventListener('gattserverdisconnected',()=>{document.getElementById('st').textContent='Disconnected';btns(false)});
  document.getElementById('st').textContent='Connected to '+(dev.name||'device');btns(true);log('connected, listening');
