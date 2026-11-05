@@ -17,11 +17,13 @@ input{width:100%;box-sizing:border-box;font:16px ui-monospace,Menlo,monospace;pa
 <button class="q" data-h="55AA0322012904ACFF" disabled>Odometer (55AA)</button>
 <button class="q" data-h="55AA032201B02009FF" disabled>Main info block (55AA)</button>
 <button class="q alt" data-h="5AA5013E200132026BFF" disabled>Battery % (5AA5 style)</button>
+<label style="display:flex;gap:8px;align-items:center;margin:8px 0;font-size:16px"><input type="checkbox" id="nr" style="width:auto;margin:0"> Send without response (try if no replies)</label>
 <input id="hx" placeholder="Custom hex, e.g. 55AA0322013202A5FF">
 <button id="sx" class="alt" disabled>Send custom</button>
 <p>Replies (screenshot this and send it to Rivet):</p>
 <div id="log"></div>
 <script>
+const EXTRA=['0000ffe0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','0000ae00-0000-1000-8000-00805f9b34fb','0000fe95-0000-1000-8000-00805f9b34fb','0000180a-0000-1000-8000-00805f9b34fb'];
 const SVC='6e400001-b5a3-f393-e0a9-e50e24dcca9e',TX='6e400003-b5a3-f393-e0a9-e50e24dcca9e',RX='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 let rx;const L=document.getElementById('log');const log=s=>{L.textContent=new Date().toLocaleTimeString()+'  '+s+'\n'+L.textContent};
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
@@ -30,15 +32,21 @@ function decode(v){const b=new Uint8Array(v);if(b[0]==0x55&&b[1]==0xAA&&b.length
  if(reg==0x32&&d.length>=2)return'battery '+(d[0]|d[1]<<8)+'%';
  if(reg==0x29&&d.length>=4){const m=(d[0]|d[1]<<8|d[2]<<16|d[3]<<24)>>>0;return'odometer '+(m/1000).toFixed(1)+' km / '+(m/1609.34).toFixed(1)+' mi'}}
  return''}
-async function send(h){try{const b=bytes(h);await rx.writeValue(b);log('sent '+hex(b))}catch(e){log('send error: '+e)}}
+async function send(h){try{const b=bytes(h);(document.getElementById('nr').checked&&rx.writeValueWithoutResponse)?await rx.writeValueWithoutResponse(b):await rx.writeValue(b);log('sent '+hex(b))}catch(e){log('send error: '+e)}}
 const btns=on=>document.querySelectorAll('button.q,#sx').forEach(b=>b.disabled=!on);
 document.getElementById('c').onclick=async()=>{try{
  if(!navigator.bluetooth){log('No Web Bluetooth here. Open this page in Bluefy.');return}
- const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
+ const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC,...EXTRA]});
  document.getElementById('st').textContent='Connecting to '+(dev.name||'device')+'…';
- const g=await dev.gatt.connect(),s=await g.getPrimaryService(SVC);rx=await s.getCharacteristic(RX);
- const tx=await s.getCharacteristic(TX);await tx.startNotifications();
- tx.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value.buffer;const d=decode(v);log('got  '+hex(v)+(d?'  = '+d:''))});
+ const g=await dev.gatt.connect();
+ const svcs=await g.getPrimaryServices();
+ for(const sv of svcs){let cs=[];try{cs=await sv.getCharacteristics()}catch(e){}
+  log('service '+sv.uuid.slice(0,8));
+  for(const c of cs){const p=c.properties,f=['read','write','writeWithoutResponse','notify','indicate'].filter(k=>p[k]).join(',');
+   log('  char '+c.uuid.slice(0,8)+' ['+f+']');
+   if(p.notify||p.indicate){try{await c.startNotifications();c.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value.buffer;const d=decode(v);log('got '+c.uuid.slice(4,8)+': '+hex(v)+(d?'  = '+d:''))})}catch(e){log('  notify fail '+e)}}
+   if(c.uuid==RX)rx=c}}
+ if(!rx){log('no 6E400002 write char found');}
  dev.addEventListener('gattserverdisconnected',()=>{document.getElementById('st').textContent='Disconnected';btns(false)});
  document.getElementById('st').textContent='Connected to '+(dev.name||'device');btns(true);log('connected, listening');
 }catch(e){log('connect error: '+e)}};
