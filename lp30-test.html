@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LP30 Test</title>
+<style>
+body{font-family:-apple-system,system-ui,sans-serif;background:#fbf6ef;color:#3a2a1e;margin:0;padding:16px}
+h1{font-size:22px;margin:0 0 4px}p{margin:4px 0 12px;color:#7a6250;font-size:14px}
+button{display:block;width:100%;font-size:18px;padding:14px;margin:8px 0;border:0;border-radius:14px;background:#d9773b;color:#fff;font-weight:600}
+button.alt{background:#8a5a3b}button:disabled{opacity:.4}
+#st{font-weight:600;margin:8px 0}
+#log{background:#fff;border-radius:12px;padding:10px;font:13px ui-monospace,Menlo,monospace;white-space:pre-wrap;min-height:160px;box-shadow:0 1px 4px #0001}
+input{width:100%;box-sizing:border-box;font:16px ui-monospace,Menlo,monospace;padding:10px;border-radius:10px;border:1px solid #d8c6b4;margin-top:8px}
+</style></head><body>
+<h1>LP30 Scooter Test</h1>
+<p>Read-only. These buttons only ask the scooter for data. Open in Bluefy, turn the scooter on, then tap Connect.</p>
+<button id="c">Connect</button>
+<div id="st">Not connected</div>
+<button class="q" data-h="55AA0322013202A5FF" disabled>Battery % (55AA)</button>
+<button class="q" data-h="55AA0322012904ACFF" disabled>Odometer (55AA)</button>
+<button class="q" data-h="55AA032201B02009FF" disabled>Main info block (55AA)</button>
+<button class="q alt" data-h="5AA5013E200132026BFF" disabled>Battery % (5AA5 style)</button>
+<input id="hx" placeholder="Custom hex, e.g. 55AA0322013202A5FF">
+<button id="sx" class="alt" disabled>Send custom</button>
+<p>Replies (screenshot this and send it to Rivet):</p>
+<div id="log"></div>
+<script>
+const SVC='6e400001-b5a3-f393-e0a9-e50e24dcca9e',TX='6e400003-b5a3-f393-e0a9-e50e24dcca9e',RX='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+let rx;const L=document.getElementById('log');const log=s=>{L.textContent=new Date().toLocaleTimeString()+'  '+s+'\n'+L.textContent};
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+const bytes=h=>{h=h.replace(/[^0-9a-f]/gi,'');if(h.length%2)throw'odd hex';return new Uint8Array(h.match(/../g).map(x=>parseInt(x,16)))};
+function decode(v){const b=new Uint8Array(v);if(b[0]==0x55&&b[1]==0xAA&&b.length>=7){const reg=b[5],d=b.slice(6,6+b[2]-2);
+ if(reg==0x32&&d.length>=2)return'battery '+(d[0]|d[1]<<8)+'%';
+ if(reg==0x29&&d.length>=4){const m=(d[0]|d[1]<<8|d[2]<<16|d[3]<<24)>>>0;return'odometer '+(m/1000).toFixed(1)+' km / '+(m/1609.34).toFixed(1)+' mi'}}
+ return''}
+async function send(h){try{const b=bytes(h);await rx.writeValue(b);log('sent '+hex(b))}catch(e){log('send error: '+e)}}
+const btns=on=>document.querySelectorAll('button.q,#sx').forEach(b=>b.disabled=!on);
+document.getElementById('c').onclick=async()=>{try{
+ if(!navigator.bluetooth){log('No Web Bluetooth here. Open this page in Bluefy.');return}
+ const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
+ document.getElementById('st').textContent='Connecting to '+(dev.name||'device')+'…';
+ const g=await dev.gatt.connect(),s=await g.getPrimaryService(SVC);rx=await s.getCharacteristic(RX);
+ const tx=await s.getCharacteristic(TX);await tx.startNotifications();
+ tx.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value.buffer;const d=decode(v);log('got  '+hex(v)+(d?'  = '+d:''))});
+ dev.addEventListener('gattserverdisconnected',()=>{document.getElementById('st').textContent='Disconnected';btns(false)});
+ document.getElementById('st').textContent='Connected to '+(dev.name||'device');btns(true);log('connected, listening');
+}catch(e){log('connect error: '+e)}};
+document.querySelectorAll('button.q').forEach(b=>b.onclick=()=>send(b.dataset.h));
+document.getElementById('sx').onclick=()=>send(document.getElementById('hx').value);
+</script></body></html>
