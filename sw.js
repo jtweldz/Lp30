@@ -1,6 +1,6 @@
 // LP30 offline cache: serve the saved page when there is no signal, refresh it when there is.
-const C='lp30-offline-v1';
-self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./','./index.html','./lp30-app6.html']).catch(()=>{})));self.skipWaiting()});
+const C='lp30-offline-v2';
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./','./index.html','./lp30-app6.html','./lp30-app7.html']).catch(()=>{})));self.skipWaiting()});
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET'||new URL(r.url).origin!==location.origin)return;
  e.respondWith(caches.open(C).then(async c=>{const hit=await c.match(r,{ignoreSearch:true});
