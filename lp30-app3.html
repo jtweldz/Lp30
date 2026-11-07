@@ -199,4 +199,4 @@ if(demo){S.conn=ready=true;S.bat=82;S.spd=11.4*MI;S.light=true;$('status').textC
 if(demo)setInterval(()=>{if(!S.conn)return;S.spd+=(S.park?0:KMH[S.mode]*.6)-S.spd;const delta=S.spd/3600*.8/MI;store.odoMi+=delta;store.tripMi+=delta;S.odo=store.odoMi*MI;S.trip=store.tripMi*MI;render()},800);
 build();syncSettings();if(new URLSearchParams(location.search).has('settings'))$('panel').showModal();
 
-</script></body></html>
+</script><script>if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});</script></body></html>
