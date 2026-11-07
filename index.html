@@ -64,7 +64,7 @@ const encode=b=>Uint8Array.from(b,x=>ENC[x]);
 function frame(reg,val){if(val===255?!READS.includes(reg):!CAPTURED[reg]?.includes(val))throw Error('Uncaptured command blocked');return encode([0xbd,0xbe,0xab,reg,val])}
 const HELLO=Uint8Array.from([0xbd,0xbe,0xaf,0xff,0xff]);
 const PIN=encode([0xbd,0xbe,0xac,0xac,48,48,48,48,48,48]);
-function decodeStatus(raw){const d=Uint8Array.from(raw,x=>DEC[x]);if(d.length!==20||d[0]!==219||d[1]!==235||d[2]!==250||d[3]!==219)return null;const mode=[0,1,2,3].find(m=>(d[5]&0x78)===(8<<m));if(mode===undefined||d[10]>100)return null;return {mph:!!(d[4]&1),light:!!(d[4]&2),park:!!(d[4]&4),cruise:!!(d[4]&8),startup:(d[4]>>4)&1,mode,bat:d[10],speed:(d[8]|d[9]<<8)/10,rawTrip:d[19],timer:d[11]|d[12]<<8}}
+function decodeStatus(raw){const d=Uint8Array.from(raw,x=>DEC[x]);if(d.length<20||d[0]!==219||d[1]!==235||d[2]!==250||d[3]!==219)return null;const mode=[0,1,2,3].find(m=>(d[5]&0x78)===(8<<m));if(mode===undefined||d[10]>100)return null;return {mph:!!(d[4]&1),light:!!(d[4]&2),park:!!(d[4]&4),cruise:!!(d[4]&8),startup:(d[4]>>4)&1,mode,bat:d[10],speed:(d[8]|d[9]<<8)/10,rawTrip:d[19],timer:d[11]|d[12]<<8}}
 function tripStep(prev,cur){if(!prev)return 0;const reboot=cur.timer<prev.timer&&!(prev.timer>65000&&cur.timer<500);if(reboot)return 0;const delta=(cur.rawTrip-prev.rawTrip+256)%256;return delta<=30&&delta%10===0?delta/1000:0}
 
 const NS='http://www.w3.org/2000/svg',KMH=[6,12,18,31],MAXK=31,MI=1.609344;
